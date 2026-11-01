@@ -1,3 +1,6 @@
+
+
+
 name: Build V3UI VPN APK
 
 on:
@@ -5,9 +8,13 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,11 +27,47 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build APK
+      - name: Extract project
         run: |
           mkdir project
           unzip -q ./*.zip -d project
-          cd "$(dirname "$(find project -name settings.gradle | head -1)")"
+          PROJECT_DIR="$(dirname "$(find project -name settings.gradle -print -quit)")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Fix Java and Kotlin targets
+        run: |
+          cat > "$PROJECT_DIR/app/build.gradle" <<'EOF'
+          plugins {
+              id "com.android.application"
+              id "org.jetbrains.kotlin.android"
+          }
+
+          android {
+              namespace "com.v3ui.vpn"
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId "com.v3ui.vpn"
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: |
+          cd "$PROJECT_DIR"
           gradle assembleDebug
 
       - uses: actions/upload-artifact@v4
